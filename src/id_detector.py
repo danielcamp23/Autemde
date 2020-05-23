@@ -1,16 +1,28 @@
 import cv2
 import numpy as np
 from PIL import Image
-from sympy import symbols, Eq, solve
+#from sympy import symbols, Eq, solve
 
-import matplotlib.pyplot as plt 
+#import matplotlib.pyplot as plt 
 
-def filter_image(img):
+xROI = 40;
+yROI = 80;
+wROI = 560;
+hROI = 320;
+
+def draw_roi(in_src_img):
+    cv2.rectangle(in_src_img, (xROI, yROI), (xROI + wROI, yROI + hROI), (255, 0, 0), 5)
+    
+
+def get_roi_image(in_src_img):
+    return in_src_img[yROI:yROI+hROI, xROI:xROI+wROI]
+    
+def filter_image(in_gray_img):
     #median = cv2.medianBlur(img, 3)
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) #convert to grey to reduce detials
-    gray = cv2.bilateralFilter(gray, 30, 17, 17)#Blur to reduce noise
+    #gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) #convert to grey to reduce detials
+    filtered_image = cv2.bilateralFilter(in_gray_img, 10, 17, 17)#Blur to reduce noise
     #second parameter, the higher, the sharpen the image
-    return gray
+    return filtered_image
 
 def connect_lines():
     print("jola")
@@ -144,28 +156,28 @@ def binaryze_image(img, original_image):
     result_img = fld.drawSegments(img,lines)
     
     sum = 0
-    ctr = 0
+    ctr = 1
     mean_val_up = 0
     for (x1, y1, x2, y2, max_value) in horizontal_up_lines:
         mean_val_up += max_value * (x2 - x1)
         ctr += x2 - x1
     mean_val_up /= ctr 
       
-    ctr = 0
+    ctr = 1
     mean_val_down = 0
     for (x1, y1, x2, y2, max_value) in horizontal_down_lines:
         mean_val_down += max_value * (x2 - x1)
         ctr += x2 - x1
     mean_val_down /= ctr
     
-    ctr = 0
+    ctr = 1
     mean_val_lhs = 0
     for (x1, y1, x2, y2, max_value) in vertical_lhs_lines:
         mean_val_lhs += max_value * (y2 - y1)
         ctr += y2 - y1
     mean_val_lhs /= ctr
         
-    ctr = 0
+    ctr = 1
     mean_val_rhs = 0
     for (x1, y1, x2, y2, max_value) in vertical_rhs_lines:
         mean_val_rhs += max_value * (y2 - y1)
@@ -203,7 +215,7 @@ def binaryze_image(img, original_image):
         if (abs(max_val - mean_val_lhs) <= abs(candidate - mean_val_lhs)):
             candidate = max_val
             v_lhs_index = index
-    print("LF: " + str(candidate))
+    #print("LF: " + str(candidate))
     
     candidate = 0
     for index, (x1, y1, x2, y2, max_val) in enumerate(vertical_rhs_lines):
@@ -212,19 +224,21 @@ def binaryze_image(img, original_image):
         if (abs(max_val - mean_val_rhs) <= abs(candidate - mean_val_rhs)):
             candidate = max_val
             v_rhs_index = index            
-    print("RI: " + str(candidate))
+    #print("RI: " + str(candidate))
     
     if vertical_lhs_lines and horizontal_up_lines:
-        cv2.circle(original_image,(vertical_lhs_lines[v_lhs_index][0], horizontal_up_lines[h_up_index][1]), 10, (255,0,0), 3)
+        cv2.circle(img,(vertical_lhs_lines[v_lhs_index][0], horizontal_up_lines[h_up_index][1]), 10, (255,0,0), 3)
      
     if v_lhs_index and horizontal_down_lines:
-        cv2.circle(original_image,(vertical_lhs_lines[v_lhs_index][0], horizontal_down_lines[h_down_index][1]), 10, (255,0,0), 3)
+        cv2.circle(img,(vertical_lhs_lines[v_lhs_index][0], horizontal_down_lines[h_down_index][1]), 10, (255,0,0), 3)
         
     if vertical_rhs_lines and horizontal_up_lines:
-        cv2.circle(original_image,(vertical_rhs_lines[v_rhs_index][0], horizontal_up_lines[h_up_index][1]), 10, (255,0,0), 3)
+        cv2.circle(img,(vertical_rhs_lines[v_rhs_index][0], horizontal_up_lines[h_up_index][1]), 10, (255,0,0), 3)
     
     if vertical_rhs_lines and horizontal_down_lines:
-        cv2.circle(original_image,(vertical_rhs_lines[v_rhs_index][0], horizontal_down_lines[h_down_index][1]), 10, (255,0,0), 3)
+        cv2.circle(img,(vertical_rhs_lines[v_rhs_index][0], horizontal_down_lines[h_down_index][1]), 10, (255,0,0), 3)
+    
+    cv2.imshow('otr', img)
     
     return result_img
     #return canny
@@ -305,6 +319,8 @@ def cluster_image(img):
     
     cv2.imshow('Cluster',result_img)
     
+#def focus_image(in_img):
+    
 i = 0;
 cv2.namedWindow("Original", cv2.WINDOW_NORMAL)
 #v2.resizeWindow('Original', 400,400)
@@ -319,15 +335,31 @@ cv2.namedWindow("Original", cv2.WINDOW_NORMAL)
 #cv2.resizeWindow('Cluster', 200,200)
 
 cap = cv2.VideoCapture(0)
+cap.set(cv2.CAP_PROP_FRAME_WIDTH,1024);
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT,768);
+
+width  = cap.get(cv2.CAP_PROP_FRAME_WIDTH)  # float
+height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT) # float
+
+
 
 while True:
-    path = './cedulas/cc_' + str(i) + '.jpg'
+    #path = './cedulas/cc_' + str(i) + '.jpg'
     i += 1
     
-    #ret, original_image = cap.read()
+    ret, original_image = cap.read()
+    draw_roi(original_image)
+    
+    gray_image = cv2.cvtColor(original_image, cv2.COLOR_BGR2GRAY)
 
-    original_image = cv2.imread(path)
-    filtered_image = filter_image(original_image)
+    roi_image = get_roi_image(gray_image)
+    filtered_image = filter_image(roi_image)
+    
+    #original_image = cv2.cvtColor(original_image, cv2.COLOR_BGR2RGB)
+    
+
+    #original_image = cv2.imread(path)
+    #
     binary_image = binaryze_image(filtered_image, original_image)
 	#cluster_image(filtered_image)
     #hough_lines(filtered_image, original_image)
@@ -337,7 +369,7 @@ while True:
     cv2.imshow('Binary', binary_image)
 	
 	
-    key = cv2.waitKey(0) & 0xFF
+    key = cv2.waitKey(20) & 0xFF
     if (key == 27):
         break
 	

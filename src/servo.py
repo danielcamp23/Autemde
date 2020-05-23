@@ -3,6 +3,9 @@ import time
 import threading
 import enum
 
+import sys
+import RPi.GPIO as gpio  # https://pypi.python.org/pypi/RPi.GPIO more info
+
 from .ramp import Ramp
 
 RAMP_STEPS = 100
@@ -19,14 +22,18 @@ ramp_stepper = Ramp(RAMP_STEPS)
 
 class Servo:
     def __init__(self, in_steps_gpio, in_direction_gpio):
-        self.steps_gpio = in_steps_gpio
-        self.direction_gpio = in_direction_gpio
-
         self.current_step_on_ramp = 0
         self.current_direction = Direction.Stop
         self.lock = threading.Lock()
         self.finish_thread = False
         self.threads = list()
+        
+        #Initialize gpio
+        self.steps_gpio = in_steps_gpio
+        self.direction_gpio = in_direction_gpio
+        gpio.setmode(gpio.BCM)
+        gpio.setup(in_steps_gpio, gpio.OUT)
+        gpio.setup(in_direction_gpio, gpio.OUT)
 
     def move_right(self, in_steps_to_take):
         self.move(Direction.Right, in_steps_to_take)

@@ -77,8 +77,8 @@ def Z_right (delta):
 	os.system("python Z_Axis.py right " + str(abs(delta)))
 
 
-servo_x_axis = Servo(in_steps_gpio=14, in_direction_gpio=15)
-servo_z_axis = Servo(in_steps_gpio=17, in_direction_gpio=27)
+#servo_x_axis = Servo(in_steps_gpio=14, in_direction_gpio=15)
+servo_z_axis = Servo(in_steps_gpio=15, in_direction_gpio=14)
 
 # loop over frames from the video stream
 while True:
@@ -104,9 +104,11 @@ while True:
 		# determine the facial landmarks for the face region, then
 		# convert the facial landmark (x, y)-coordinates to a NumPy
 		# array
+		
 		shape = predictor(gray, rect)
 		shape = face_utils.shape_to_np(shape)
 
+		
 		# extract the left and right eye coordinates, then use the
 		# coordinates to compute the eye aspect ratio for both eyes
 		leftEye = shape[lStart:lEnd]
@@ -118,13 +120,19 @@ while True:
 #			Th_Z_left.clear()
 			
 			#Z_left (delt*4)
-			servo_z_axis.move_right(delt*4)
+			#servo_z_axis.move_left(abs(delt*4))
+			print("delta = " + str(delt))		
 
-		if delt > 10:
+		elif delt > 10:
 #			Th_Z_right.clear()
-			servo_z_axis.move_left(delt*4)
+			#servo_z_axis.move_right(abs(delt*4))
+			print("delta = " + str(delt))		
 			#Z_right (delt*4)
-
+			
+		else:
+			servo_z_axis.stop()
+			
+		'''
 		delta = 0
 		leftEAR = eye_aspect_ratio(leftEye)
 		rightEAR = eye_aspect_ratio(rightEye)
@@ -151,15 +159,11 @@ while True:
 				if not ALARM_ON:
 					ALARM_ON = True
 
-					# check to see if the TrafficHat buzzer should
-					# be sounded
-					if args["alarm"] > 0:
-						th.buzzer.blink(0.1, 0.1, 10,
-							background=True)
-
 				# draw an alarm on the frame
 				cv2.putText(frame, "DROWSINESS ALERT!", (10, 30),
 					cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+					
+		
 
 		# otherwise, the eye aspect ratio is not below the blink
 		# threshold, so reset the counter and alarm
@@ -173,9 +177,10 @@ while True:
 		cv2.putText(frame, "EAR: {:.3f}".format(ear), (300, 30),
 			cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
  
+		'''
 	# show the frame
 	cv2.imshow("Frame", frame)
-	key = cv2.waitKey(1) & 0xFF
+	key = cv2.waitKey(30) & 0xFF
  
 	# if the `q` key was pressed, break from the loop
 	if key == ord("q"):

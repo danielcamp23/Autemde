@@ -3,6 +3,11 @@ import numpy as np
 import time
 import threading
 from PIL import Image
+from imutils.video import VideoStream
+import os
+from .ramp import Ramp
+
+from .autofocus import Autofocus
 
 
 xROI = 70
@@ -17,8 +22,9 @@ SCREENSHOT_HEIGHT   = 1944
 
 class IDDetector:
     def __init__(self):
-        self.vs = cv2.VideoCapture(0)#VideoStream(src=0)
+        self.vs = cv2.VideoCapture(0)#
         self.vs.set(cv2.CAP_PROP_FRAME_WIDTH, VIDEO_FRAME_WIDTH)
+        #self.vs.resolution = (VIDEO_FRAME_WIDTH, VIDEO_FRAME_HEIGHT)
         self.vs.set(cv2.CAP_PROP_FRAME_HEIGHT, VIDEO_FRAME_HEIGHT)
         self.t = threading.Thread(target=self.detection_thread, args=())
 
@@ -33,7 +39,6 @@ class IDDetector:
 
     def detection_thread(self):
         while True:
-            #frame = self.vs.read()
             _, frame = self.vs.read()
             self.draw_roi(frame)
             gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -46,7 +51,14 @@ class IDDetector:
 
             contours = self.get_contours(gradient_image, frame)
 
-            self.process_contours(contours)
+            # Verify if id card is in place
+            if self.process_contours(contours) == False:
+                if cv2.waitKey(30) & 0xFF == ord("q"):
+                    break
+                    
+                continue
+                
+            
 
             #closed_image = self.close_image(grad)
 
@@ -80,12 +92,8 @@ class IDDetector:
 
     def get_contours(self, img, canvas):
         keepers = []
-        image_, contours, hierarchy = cv2.findContours(img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-
-	    # calculate points for each contour
-        hull = []
-        for i in range(len(contours)):  
-            hull.append(cv2.convexHull(contours[i], False))        
+        contours, hierarchy = cv2.findContours(img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+       
 
         for index_, contour_ in enumerate(contours):
             x_, y_, w_, h_ = cv2.boundingRect(contour_)
@@ -93,10 +101,9 @@ class IDDetector:
             b_wrong_ratio = w_ / h_ < 4
             #b_too_big = h_ > hROI * 0.20 or w_ > wROI * 0.70 or h_/w_ > 0.5
             #b_too_moved = xx > wROI * 0.4 or yy > hROI * 0.7 or yy < hROI * 0.15
-            if not b_too_small and not b_wrong_ratio:
+            if (not b_too_small and not b_wrong_ratio) or True:
                 cv2.rectangle(canvas, (x_ + xROI, y_ + yROI), (x_ + w_ + xROI, y_ + h_ + yROI), (255, 0, 0), 1)
                 keepers.append([contour_, [x_, y_, w_, h_]])
-                #cv2.drawContours(canvas, hull, 1, (255, 0, 255), 1, 8)
 
         return keepers
 
@@ -136,4 +143,15 @@ class IDDetector:
     def process_contours(self, contours):
         for contour, [x, y, w, h] in contours:
             print()
-
+            
+    def make_low_res(self):
+        self.vs.set(cv2.CAP_PROP_FRAME_WIDTH, VIDEO_FRAME_WIDTH)
+        self.vs.set(cv2.CAP_PROP_FRAME_HEIGHT, VIDEO_FRAME_HEIGHT)
+        
+    def make_high_res(self):
+        self.vs.set(cv2.CAP_PROP_FRAME_WIDTH, SCREENSHOT_WIDTH)
+        self.vs.set(cv2.CAP_PROP_FRAME_HEIGHT, SCREENSHOT_HEIGHT) 
+        
+    def auto_focus(self):
+        self.make_low_res()
+        Autofocus.start(self.vs)

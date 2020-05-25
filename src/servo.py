@@ -131,10 +131,6 @@ class Servo:
 
         print("Thread Started")
 
-        while True:
-            
-
-
         acquired = self.lock.acquire(blocking=True, timeout=1) # waits for 1 second
         try:
             if acquired:

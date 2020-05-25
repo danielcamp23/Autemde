@@ -11,7 +11,7 @@ from .ramp import Ramp
 RAMP_STEPS = 40
 MIN_SLEEP = 0.002
 MAX_SLEEP = 0.05
-STEPS_TO_CHECK_THREAD_FINISH = 10
+STEPS_TO_CHECK_THREAD_FINISH = 5
 
 class Direction(enum.Enum):
     Stop = 0
@@ -104,6 +104,7 @@ class Servo:
                         t.join() # waits for thread to finish
                     else:
                         print("Wait finished")
+                        return
 
         self.finish_thread = False
         self.threads = list()
@@ -124,129 +125,6 @@ class Servo:
 
         return finish_thread
 
-    def movement_thread2(self, in_direction, in_steps_to_accelerate, in_flat_steps, in_steps_to_deaccelerate):
-        current_step_on_ramp = 0
-        current_direction = Direction.Stop
-        finish_thread = False
-
-        print("Thread Started")
-
-        acquired = self.lock.acquire(blocking=True, timeout=1) # waits for 1 second
-        try:
-            if acquired:
-                current_step_on_ramp = self.current_step_on_ramp
-                current_direction = self.current_direction
-        finally:
-            if acquired:
-                self.lock.release() 
-            else:
-                return  
-
-        # Needs to invert direction
-        if current_direction != in_direction and current_direction != Direction.Stop:
-            
-            #Stop first
-            lock_ctr = 0
-            starting_step = current_step_on_ramp
-            for i in reversed(range(starting_step)):
-                current_step_on_ramp = i
-                lock_ctr += 1
-                delay = self.get_delay_for_step(current_step_on_ramp)
-                GPIO.output(self.steps_gpio, True)
-                #print("+step " + str(current_step_on_ramp) + " - " + str(current_direction))
-                #time.sleep(delay)
-                GPIO.output(self.steps_gpio, False)
-                #print("-step " + str(current_step_on_ramp) + " - " + str(current_direction))
-                time.sleep(delay)
-
-                if lock_ctr % STEPS_TO_CHECK_THREAD_FINISH == 0 and self.is_thread_to_be_finished() == True:
-                    print("Finish Thread")
-                    in_steps_to_accelerate = 0
-                    in_flat_steps = 0
-                    in_steps_to_accelerate = 0
-                    finish_tread = True
-                    break
-
-        
-        if finish_thread != True:
-            #Start actual movement
-            if in_direction ==  Direction.Right:
-                GPIO.output(self.direction_gpio, True) 
-            else:
-                GPIO.output(self.direction_gpio, False) 
-
-            lock_ctr = 0
-            starting_step = current_step_on_ramp
-            print("starting_step " + str(starting_step))
-            print("in_steps_to_accelerate " + str(in_steps_to_accelerate))
-            for i in range(starting_step, in_steps_to_accelerate):
-                current_direction = in_direction
-                current_step_on_ramp = i
-                lock_ctr += 1
-                delay = self.get_delay_for_step(current_step_on_ramp)
-                GPIO.output(self.steps_gpio, True)
-                print("+step " + str(current_step_on_ramp) + " - " + str(current_direction))
-                #time.sleep(delay)
-                GPIO.output(self.steps_gpio, False)
-                print("-step " + str(current_step_on_ramp) + " - " + str(current_direction))
-                time.sleep(delay)
-
-                if lock_ctr % STEPS_TO_CHECK_THREAD_FINISH == 0 and self.is_thread_to_be_finished() == True:
-                    print("Finish Thread")
-                    finish_thread = True
-                    break
-
-        lock_ctr = 0
-        
-        print("***********")
-        if finish_thread != True:
-            print("***********222222222")
-            for i in range(in_flat_steps):
-                current_direction = in_direction
-                lock_ctr += 1
-                delay = self.get_delay_for_step(RAMP_STEPS)
-                GPIO.output(self.steps_gpio, True)
-                print("+step " + str(current_step_on_ramp + i) + " - " + str(current_direction))
-                #time.sleep(delay)
-                GPIO.output(self.steps_gpio, False)
-                print("-step " + str(current_step_on_ramp + i) + " - " + str(current_direction))
-                time.sleep(delay)
-
-                if lock_ctr % STEPS_TO_CHECK_THREAD_FINISH == 0 and self.is_thread_to_be_finished() == True:
-                    print("Finish Thread")
-                    finish_thread = True
-                    break
-
-        if finish_thread != True:
-            starting_step = current_step_on_ramp 
-            for i in reversed(range(starting_step)):
-                current_direction = in_direction
-                current_step_on_ramp = i
-                lock_ctr += 1
-                delay = self.get_delay_for_step(current_step_on_ramp)
-                GPIO.output(self.steps_gpio, True)
-                print("+step " + str(current_step_on_ramp) + " - " + str(current_direction))
-                #time.sleep(delay)
-                GPIO.output(self.steps_gpio, False)
-                print("-step " + str(current_step_on_ramp) + " - " + str(current_direction))
-                time.sleep(delay)
-
-                if current_direction == 0:
-                    current_direction = Direction.Stop            
-
-                if lock_ctr % STEPS_TO_CHECK_THREAD_FINISH == 0 and self.is_thread_to_be_finished() == True:
-                    print("Finish Thread")
-                    finish_thread = True
-                    break
-
-        print("Movement Finished")
-        
-        self.lock.acquire()
-        try:
-            self.current_step_on_ramp = current_step_on_ramp
-            self.current_direction = current_direction
-        finally:
-            self.lock.release()         
 
     def movement_thread(self, in_direction, in_steps_to_accelerate, in_flat_steps, in_steps_to_deaccelerate):
         current_step_on_ramp = 0
@@ -310,10 +188,10 @@ class Servo:
                 lock_ctr += 1
                 delay = self.get_delay_for_step(current_step_on_ramp)
                 GPIO.output(self.steps_gpio, True)
-                print("+step " + str(current_step_on_ramp) + " - " + str(current_direction))
+                #print("+step " + str(current_step_on_ramp) + " - " + str(current_direction))
                 #time.sleep(delay)
                 GPIO.output(self.steps_gpio, False)
-                print("-step " + str(current_step_on_ramp) + " - " + str(current_direction))
+                #print("-step " + str(current_step_on_ramp) + " - " + str(current_direction))
                 time.sleep(delay)
 
                 if lock_ctr % STEPS_TO_CHECK_THREAD_FINISH == 0 and self.is_thread_to_be_finished() == True:
@@ -323,18 +201,16 @@ class Servo:
 
         lock_ctr = 0
         
-        print("***********")
         if finish_thread != True:
-            print("***********222222222")
             for i in range(in_flat_steps):
                 current_direction = in_direction
                 lock_ctr += 1
                 delay = self.get_delay_for_step(RAMP_STEPS)
                 GPIO.output(self.steps_gpio, True)
-                print("+step " + str(current_step_on_ramp + i) + " - " + str(current_direction))
+                #print("+step " + str(current_step_on_ramp + i) + " - " + str(current_direction))
                 #time.sleep(delay)
                 GPIO.output(self.steps_gpio, False)
-                print("-step " + str(current_step_on_ramp + i) + " - " + str(current_direction))
+                #print("-step " + str(current_step_on_ramp + i) + " - " + str(current_direction))
                 time.sleep(delay)
 
                 if lock_ctr % STEPS_TO_CHECK_THREAD_FINISH == 0 and self.is_thread_to_be_finished() == True:
@@ -350,10 +226,10 @@ class Servo:
                 lock_ctr += 1
                 delay = self.get_delay_for_step(current_step_on_ramp)
                 GPIO.output(self.steps_gpio, True)
-                print("+step " + str(current_step_on_ramp) + " - " + str(current_direction))
+                #print("+step " + str(current_step_on_ramp) + " - " + str(current_direction))
                 #time.sleep(delay)
                 GPIO.output(self.steps_gpio, False)
-                print("-step " + str(current_step_on_ramp) + " - " + str(current_direction))
+                #print("-step " + str(current_step_on_ramp) + " - " + str(current_direction))
                 time.sleep(delay)
 
                 if current_direction == 0:

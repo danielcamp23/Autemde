@@ -120,19 +120,18 @@ while True:
 #			Th_Z_left.clear()
 			
 			#Z_left (delt*4)
-			#servo_z_axis.move_left(abs(delt*4))
-			print("delta = " + str(delt))		
+			servo_z_axis.move_left(abs(delt*4))
+			#print("delta = " + str(delt))		
 
 		elif delt > 10:
 #			Th_Z_right.clear()
-			#servo_z_axis.move_right(abs(delt*4))
-			print("delta = " + str(delt))		
+			servo_z_axis.move_right(abs(delt*4))
+			#print("delta = " + str(delt))		
 			#Z_right (delt*4)
 			
 		else:
 			servo_z_axis.stop()
 			
-		'''
 		delta = 0
 		leftEAR = eye_aspect_ratio(leftEye)
 		rightEAR = eye_aspect_ratio(rightEye)
@@ -176,8 +175,7 @@ while True:
 		# thresholds and frame counters
 		cv2.putText(frame, "EAR: {:.3f}".format(ear), (300, 30),
 			cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
- 
-		'''
+
 	# show the frame
 	cv2.imshow("Frame", frame)
 	key = cv2.waitKey(30) & 0xFF

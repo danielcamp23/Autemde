@@ -17,9 +17,9 @@ class Autofocus:
 	
 		while True:
 			#Adjust focus
-			focusing(focal_distance)
+			Autofocus.focusing(focal_distance)
 			#Take image and calculate image clarity
-			val = calculation(capture)
+			val = Autofocus.calculation(capture)
 			#Find the maximum image clarity
 			if val > max_value:
 				max_index = focal_distance
@@ -41,11 +41,11 @@ class Autofocus:
 				break
 
 		#Adjust focus to the best
-		focusing(max_index)
+		Autofocus.focusing(max_index)
 		time.sleep(1)
 		return True
 			
-		
+	@staticmethod	
 	def focusing(val):
 		value = (val << 4) & 0x3ff0
 		data1 = (value >> 8) & 0x3f
@@ -65,7 +65,7 @@ class Autofocus:
 
 	def calculation(capture):
 		ret, frame = capture.read()
-		return laplacian(frame)
+		return Autofocus.laplacian(frame)
 		
 		
 	if __name__ == "__main__":

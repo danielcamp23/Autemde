@@ -15,10 +15,14 @@ yROI = 80
 wROI = 500
 hROI = 320
 
+barcode_ratio = 7.2 / 1.4
+
 VIDEO_FRAME_WIDTH   = 640
 VIDEO_FRAME_HEIGHT  = 480
 SCREENSHOT_WIDTH    = 2592
 SCREENSHOT_HEIGHT   = 1944
+
+PICTURE_RATIO = SCREENSHOT_WIDTH / VIDEO_FRAME_WIDTH
 
 class IDDetector:
     def __init__(self):
@@ -50,28 +54,33 @@ class IDDetector:
             gradient_image = self.get_gradient_image(roi)
 
             contours = self.get_contours(gradient_image, frame)
+            #self.get_contours(canny_image, frame)
 
             # Verify if id card is in place
             
-            if self.process_contours(contours, frame) == False:
-                if cv2.waitKey(30) & 0xFF == ord("q"):
-                    break
+
+            
+            self.process_contours(contours, frame)
+            
+            cv2.imshow('Frame', frame)
+            cv2.imshow('Canny', canny_image)
+            cv2.imshow('Gradient', gradient_image)
+            
+            if cv2.waitKey(0) & 0xFF == ord("q"):
+                break
                     
-                continue
+                #continue
             
                 
             
 
             #closed_image = self.close_image(grad)
 
-            cv2.imshow('Frame', frame)
-            cv2.imshow('Canny', canny_image)
-            cv2.imshow('Gradient', gradient_image)
+            #cv2.imshow('Frame', frame)
+            #cv2.imshow('Canny', canny_image)
+            
             #cv2.imshow('closed_image', closed_image)
             #if match_id_card(lines_image):
-                
-            if cv2.waitKey(30) & 0xFF == ord("q"):
-                break
 
         self.vs.release()
         cv2.destroyAllWindows()
@@ -96,19 +105,24 @@ class IDDetector:
         keepers = []
         contours, hierarchy = cv2.findContours(img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
        
+        contours = sorted(contours, key = cv2.contourArea, reverse = True)[:5]
+        
+        closed_contours = []
 
-        for index_, contour_ in enumerate(contours):
-            x_, y_, w_, h_ = cv2.boundingRect(contour_)
-            b_too_small = w_ < 40 or h_ < 40
-            b_wrong_ratio = w_ / h_ < 4
-            #b_too_big = h_ > hROI * 0.20 or w_ > wROI * 0.70 or h_/w_ > 0.5
-            #b_too_moved = xx > wROI * 0.4 or yy > hROI * 0.7 or yy < hROI * 0.15
-            if not b_too_small and not b_wrong_ratio:
-                
-                #cv2.rectangle(canvas, (x_ + xROI, y_ + yROI), (x_ + w_ + xROI, y_ + h_ + yROI), (255, 0, 0), 1)
-                keepers.append([contour_, [x_, y_, w_, h_]])
-
-        return keepers
+        for contour in contours:
+                contour[:,0,0] += xROI
+                contour[:,0,1] += yROI
+                # approximate the contour
+                perimeter = cv2.arcLength(contour, True)
+                approx = cv2.approxPolyDP(contour, 0.015 * perimeter, True)
+                if len(approx) == 4:
+                        closed_contours.append(approx)
+                        
+        
+        #cv2.drawContours(canvas, contours, -1, (0, 255, 255), 1)
+        cv2.drawContours(canvas, closed_contours, -1, (255, 0, 255), 1)
+        
+        return closed_contours
 
     def get_gradient_image(self, img):
         gradX = cv2.Sobel(img, ddepth=cv2.CV_64F, dx=1, dy=0, ksize=-1)
@@ -144,33 +158,90 @@ class IDDetector:
         return img[yROI:yROI+hROI, xROI:xROI+wROI]
 
     def process_contours(self, contours, canvas):
-        #contour_, [x_, y_, w_, h_]
-        if not contours:
-            return
-        contours.sort(key=lambda entry : entry[1][2], reverse=True)
-        print("HOLA")
-        candidate = contours[0]
+
+        pts = contours[0].reshape(4, 2)
+        #pts *= int(PICTURE_RATIO) # Coordinates for full resolution picture
         
-        if candidate[1][2] < wROI * 0.6:
-            return 
-            
-        rect = cv2.minAreaRect(candidate[0])
-        box = cv2.boxPoints(rect)
-        box = np.intp(box) #np.intp: Integer used for indexing (same as C ssize_t; normally either int32 or int64)
+        rect = np.zeros((4, 2), dtype = "float32")
+        rect2 = np.zeros((4, 2), dtype = "float32")
         
-        box[0][0] += xROI
-        box[0][1] += yROI
-        box[1][0] += xROI
-        box[1][1] += yROI
-        box[2][0] += xROI
-        box[2][1] += yROI
-        box[3][0] += xROI
-        box[3][1] += yROI
-        cv2.drawContours(canvas, [box], -1, (55, 250, 100))
+        # the top-left point has the smallest sum whereas the
+        # bottom-right has the largest sum
+        s = pts.sum(axis = 1)
+        rect[0] = pts[np.argmin(s)]
+        rect[2] = pts[np.argmax(s)]
+        # compute the difference between the points -- the top-right
+        # will have the minumum difference and the bottom-left will
+        # have the maximum difference
+        diff = np.diff(pts, axis = 1)
+        rect[1] = pts[np.argmin(diff)]
+        rect[3] = pts[np.argmax(diff)]
+        rect *= PICTURE_RATIO
         
-        #cv2.rectangle(canvas, (candidate[1][0] + xROI, candidate[1][1] + yROI), (candidate[1][0] + candidate[1][2] + xROI, candidate[1][1] + candidate[1][3] + yROI), (55, 100, 100), 1)
-        #print(contours[0][0])
-        self.take_picture(contours[0], box)
+        rect2 = rect.copy()
+        print("rect[0] " + str(rect[0]))
+        print("rect[1] " + str(rect[1]))
+        print("rect[2] " + str(rect[2]))
+        print("rect[3] " + str(rect[3]))
+        rect[0] -= 10 
+        rect[1][0] += 10 
+        rect[1][1] -= 10 
+        rect[2] += 10 
+        rect[3][0] -= 10 
+        rect[3][1] += 10   
+        print("rect[0] " + str(rect[0]))      
+        print("rect[1] " + str(rect[1]))
+        print("rect[2] " + str(rect[2]))
+        print("rect[3] " + str(rect[3]))
+        
+        # now that we have our rectangle of points, let's compute
+        # the width of our new image
+        (tl, tr, br, bl) = rect
+        widthA = np.sqrt(((br[0] - bl[0]) ** 2) + ((br[1] - bl[1]) ** 2))
+        widthB = np.sqrt(((tr[0] - tl[0]) ** 2) + ((tr[1] - tl[1]) ** 2))
+        # ...and now for the height of our new image
+        heightA = np.sqrt(((tr[0] - br[0]) ** 2) + ((tr[1] - br[1]) ** 2))
+        heightB = np.sqrt(((tl[0] - bl[0]) ** 2) + ((tl[1] - bl[1]) ** 2))
+        # take the maximum of the width and height values to reach
+        # our final dimensions
+        maxWidth = max(int(widthA), int(widthB))
+        maxHeight = max(int(heightA), int(heightB))
+        
+        # construct our destination points which will be used to
+        # map the screen to a top-down, "birds eye" view
+        dst = np.array([
+                [0, 0],
+                [maxWidth - 1, 0],
+                [maxWidth - 1, maxHeight - 1],
+                [0, maxHeight - 1]], dtype = "float32")   
+        
+        self.make_low_res()
+        Autofocus.focus(self.vs)
+        
+        self.make_high_res()
+        _, frame = self.vs.read()
+        self.make_low_res()
+        
+        # calculate the perspective transform matrix and warp
+        # the perspective to grab the screen
+        M = cv2.getPerspectiveTransform(rect, dst)
+        warp = cv2.warpPerspective(frame, M, (maxWidth, maxHeight))
+        
+        cv2.imwrite("barcode.jpg", warp)
+        y_min = int(min(rect[0][1], rect[1][1], rect[2][1], rect[3][1]))
+        y_max = int(max(rect[0][1], rect[1][1], rect[2][1], rect[3][1]))
+        x_min = int(min(rect[0][0], rect[1][0], rect[2][0], rect[3][0]))
+        x_max = int(max(rect[0][0], rect[1][0], rect[2][0], rect[3][0]))
+        
+        y__min = int(min(rect2[0][1], rect2[1][1], rect2[2][1], rect2[3][1]))
+        y__max = int(max(rect2[0][1], rect2[1][1], rect2[2][1], rect2[3][1]))
+        x__min = int(min(rect2[0][0], rect2[1][0], rect2[2][0], rect2[3][0]))
+        x__max = int(max(rect2[0][0], rect2[1][0], rect2[2][0], rect2[3][0]))        
+        cv2.imwrite("barcodeno_crop.jpg", frame[y_min:y_max, x_min:x_max, :])
+        cv2.imwrite("barcodeno_crop_small.jpg", frame[y__min:y__max, x__min:x__max, :])
+        #cv2.drawContours(frame, [rect2], -1, (255, 0, 255), 1)
+        #cv2.imshow("crop", frame)
+        print("s: " + str(frame.shape))
             
     def make_low_res(self):
         self.vs.set(cv2.CAP_PROP_FRAME_WIDTH, VIDEO_FRAME_WIDTH)
@@ -181,59 +252,49 @@ class IDDetector:
         self.vs.set(cv2.CAP_PROP_FRAME_HEIGHT, SCREENSHOT_HEIGHT) 
         
     def take_picture(self, contour, box):
-        c = contour
-        
-        x1,y1,w,h = contour[1]
-        x1 += xROI
-        y1 += yROI
-        
-        x2 = x1 + w
-        y2 = y1 + h
-        
-        x1 = x1 * (SCREENSHOT_WIDTH / VIDEO_FRAME_WIDTH)
-        x2 = x2 * (SCREENSHOT_WIDTH / VIDEO_FRAME_WIDTH)
-        
-        y1 = y1 * (SCREENSHOT_HEIGHT / VIDEO_FRAME_HEIGHT)
-        y2 = y2 * (SCREENSHOT_HEIGHT / VIDEO_FRAME_HEIGHT)
-        
-        x1 = int(x1)
-        x2 = int(x2)
-        y1 = int(y1)
-        y2 = int(y2)
+
         
         
-        _x1 = box[0][0] * (SCREENSHOT_WIDTH / VIDEO_FRAME_WIDTH)
-        _y1 = box[0][1] * (SCREENSHOT_HEIGHT / VIDEO_FRAME_HEIGHT)
-        _x2 = box[1][0] * (SCREENSHOT_WIDTH / VIDEO_FRAME_WIDTH)
-        _y2 = box[1][1] * (SCREENSHOT_HEIGHT / VIDEO_FRAME_HEIGHT)
-        _x3 = box[2][0] * (SCREENSHOT_WIDTH / VIDEO_FRAME_WIDTH)
-        _y3 = box[2][1] * (SCREENSHOT_HEIGHT / VIDEO_FRAME_HEIGHT)
-        _x4 = box[3][0] * (SCREENSHOT_WIDTH / VIDEO_FRAME_WIDTH)
-        _y4 = box[3][1] * (SCREENSHOT_HEIGHT / VIDEO_FRAME_HEIGHT)
+        _x1 = box[0][0] #* (SCREENSHOT_WIDTH / VIDEO_FRAME_WIDTH)
+        _y1 = box[0][1] #* (SCREENSHOT_HEIGHT / VIDEO_FRAME_HEIGHT)
+        _x2 = box[1][0] #* (SCREENSHOT_WIDTH / VIDEO_FRAME_WIDTH)
+        _y2 = box[1][1] #* (SCREENSHOT_HEIGHT / VIDEO_FRAME_HEIGHT)
+        _x3 = box[2][0] #* (SCREENSHOT_WIDTH / VIDEO_FRAME_WIDTH)
+        _y3 = box[2][1] #* (SCREENSHOT_HEIGHT / VIDEO_FRAME_HEIGHT)
+        _x4 = box[3][0] #* (SCREENSHOT_WIDTH / VIDEO_FRAME_WIDTH)
+        _y4 = box[3][1] #* (SCREENSHOT_HEIGHT / VIDEO_FRAME_HEIGHT)
         
         self.make_low_res()
-        Autofocus.focus(self.vs)
+        #Autofocus.focus(self.vs)
         
-        self.make_high_res()
+        #self.make_high_res()
         _, frame = self.vs.read()
         #cv2.imwrite("barcode.jpg", frame[y1:y2, x1:x2, :])
         
-        pts1 = np.float32([[_y1, _x1], [_y2, _x2], [_y3, _x3], [_y4, _x4]]) 
-        pts2 = np.float32([[0, 0], [400, 0], [0, 240], [400, 240]]) 
+        pts1 = np.float32([[_x1, _y1], [_x2, _y2], [_x3, _y3], [_x4, _y4]]) 
+        pts2 = np.float32([[0, 0], [600, 0], [600, 240], [0, 240]]) 
       
         # Apply Perspective Transform Algorithm 
         matrix = cv2.getPerspectiveTransform(pts1, pts2) 
         result = cv2.warpPerspective(frame, matrix, (500, 200)) 
     # Wrap the transformed image 
+    
+        #crop = frame[y1:y3, x1:x3, :]
   
-        cv2.imshow('frame', frame) # Inital Capture 
-        cv2.imshow('frame1', result) # Transformed Capture 
+        #cv2.imshow('frame', frame) # Inital Capture 
+        #cv2.imshow('frame1', result) # Transformed Capture 
+        #cv2.imshow('frame2', frame[]) # Transformed Capture 
 
         
         self.make_low_res()
-        cv2.namedWindow("Big", cv2.WINDOW_NORMAL)
-        cv2.resizeWindow('Big', 600,400)
-        cv2.imshow("Big", frame[y1:y2, x1:x2, :])
+        #cv2.namedWindow("Big", cv2.WINDOW_NORMAL)
+        #cv2.resizeWindow('Big', 600,400)
+        
+        print("y1 " + str(y1))
+        print("y2 " + str(y1+h))
+        print("x1 " + str(x1))
+        print("x2 " + str(x1+w))
+        cv2.imshow("Big", frame[y1:y1+h, x1:x1+w, :])
         cv2.waitKey(0)
         
     def calc_histogram(img, mask):

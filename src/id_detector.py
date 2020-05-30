@@ -6,7 +6,6 @@ from PIL import Image
 from imutils.video import VideoStream
 import os
 from .ramp import Ramp
-
 from .autofocus import Autofocus
 
 
@@ -15,7 +14,7 @@ yROI = 80
 wROI = 500
 hROI = 320
 
-barcode_ratio = 7.2 / 1.4
+barcode_ratio = 7.2 / 1.2
 
 VIDEO_FRAME_WIDTH   = 640
 VIDEO_FRAME_HEIGHT  = 480
@@ -50,24 +49,27 @@ class IDDetector:
             roi = self.get_roi_image(gray_frame) #Extracts ROI
             roi = self.filter_image(roi) #Apply bilateral filter to gray ROI
 
-            canny_image = self.detect_lines(roi)
+            #canny_image = self.detect_lines(roi)
             gradient_image = self.get_gradient_image(roi)
 
-            contours = self.get_contours(gradient_image, frame)
-            #self.get_contours(canny_image, frame)
+            contours = self.get_contours(gradient_image, frame, draw_contours=True, is_roi=True)
 
             # Verify if id card is in place
-            
+            if self.is_there_id_document(contours):
+                barcode = self.reprocess_roi(contours)
+                barcode_gray = cv2.cvtColor(barcode, cv2.COLOR_BGR2GRAY)
+                barcode_filtered = self.filter_image(barcode_gray) #Apply bilateral filter to gray ROI
+                barcode_gradient = self.get_gradient_image(barcode_filtered)
+                contours = self.get_contours(barcode_gradient, barcode, draw_contours=False, is_roi=False)
+                if self.is_there_id_document(contours):
+                    #cv2.imshow('barcode_gray', barcode)
+                    #cv2.imshow('barcode_filtered', barcode_filtered)
+                    self.process_id_contours(contours, barcode)
+                    os.system("java -jar reader.jar barcode.jpg")
+                
+                #cv2.imshow('barcode_gradient', barcode_gradient)
+                
 
-            
-            self.process_contours(contours, frame)
-            
-            cv2.imshow('Frame', frame)
-            cv2.imshow('Canny', canny_image)
-            cv2.imshow('Gradient', gradient_image)
-            
-            if cv2.waitKey(0) & 0xFF == ord("q"):
-                break
                     
                 #continue
             
@@ -76,11 +78,13 @@ class IDDetector:
 
             #closed_image = self.close_image(grad)
 
-            #cv2.imshow('Frame', frame)
+            cv2.imshow('Frame', frame)
             #cv2.imshow('Canny', canny_image)
             
             #cv2.imshow('closed_image', closed_image)
             #if match_id_card(lines_image):
+            if cv2.waitKey(30) & 0xFF == ord("q"):
+                break
 
         self.vs.release()
         cv2.destroyAllWindows()
@@ -99,9 +103,53 @@ class IDDetector:
 
         if len(contours) > 0 : 
             print("")
-            
+      
+    def is_there_id_document(self, contours):
+        if len(contours) < 1:
+            return False
+        
+        
+        id_contour = contours[0]
+        
+        pts = id_contour.reshape(4, 2)
+        rect = np.zeros((4, 2), dtype = "float32")
+        
+        # the top-left point has the smallest sum whereas the
+        # bottom-right has the largest sum
+        s = pts.sum(axis = 1)
+        rect[0] = pts[np.argmin(s)]
+        rect[2] = pts[np.argmax(s)]
+        # compute the difference between the points -- the top-right
+        # will have the minumum difference and the bottom-left will
+        # have the maximum difference
+        diff = np.diff(pts, axis = 1)
+        rect[1] = pts[np.argmin(diff)]
+        rect[3] = pts[np.argmax(diff)]
+        
+        # now that we have our rectangle of points, let's compute
+        # the width of our new image
+        (tl, tr, br, bl) = rect
+        widthA = np.sqrt(((br[0] - bl[0]) ** 2) + ((br[1] - bl[1]) ** 2))
+        widthB = np.sqrt(((tr[0] - tl[0]) ** 2) + ((tr[1] - tl[1]) ** 2))
+        # ...and now for the height of our new image
+        heightA = np.sqrt(((tr[0] - br[0]) ** 2) + ((tr[1] - br[1]) ** 2))
+        heightB = np.sqrt(((tl[0] - bl[0]) ** 2) + ((tl[1] - bl[1]) ** 2))
+        # take the maximum of the width and height values to reach
+        # our final dimensions
+        maxWidth = max(int(widthA), int(widthB))
+        maxHeight = max(int(heightA), int(heightB))
+        
+        if maxWidth == 0 or maxHeight == 0:
+            return False
+        
+        id_ratio = maxWidth / maxHeight
+        
+        if id_ratio > barcode_ratio * 0.90 and id_ratio < barcode_ratio * 1.1:
+            return True
+        else:
+            return False
 
-    def get_contours(self, img, canvas):
+    def get_contours(self, img, canvas, draw_contours, is_roi):
         keepers = []
         contours, hierarchy = cv2.findContours(img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
        
@@ -110,8 +158,9 @@ class IDDetector:
         closed_contours = []
 
         for contour in contours:
-                contour[:,0,0] += xROI
-                contour[:,0,1] += yROI
+                if is_roi:
+                    contour[:,0,0] += xROI
+                    contour[:,0,1] += yROI
                 # approximate the contour
                 perimeter = cv2.arcLength(contour, True)
                 approx = cv2.approxPolyDP(contour, 0.015 * perimeter, True)
@@ -119,8 +168,8 @@ class IDDetector:
                         closed_contours.append(approx)
                         
         
-        #cv2.drawContours(canvas, contours, -1, (0, 255, 255), 1)
-        cv2.drawContours(canvas, closed_contours, -1, (255, 0, 255), 1)
+        if draw_contours:
+            cv2.drawContours(canvas, closed_contours, -1, (255, 0, 255), 1)
         
         return closed_contours
 
@@ -156,6 +205,47 @@ class IDDetector:
 
     def get_roi_image(self, img):
         return img[yROI:yROI+hROI, xROI:xROI+wROI]
+        
+    def reprocess_roi(self, contours):
+        pts = contours[0].reshape(4, 2)
+        #pts *= int(PICTURE_RATIO) # Coordinates for full resolution picture
+        
+        rect = np.zeros((4, 2), dtype = "float32")
+        
+        # the top-left point has the smallest sum whereas the
+        # bottom-right has the largest sum
+        s = pts.sum(axis = 1)
+        rect[0] = pts[np.argmin(s)]
+        rect[2] = pts[np.argmax(s)]
+        # compute the difference between the points -- the top-right
+        # will have the minumum difference and the bottom-left will
+        # have the maximum difference
+        diff = np.diff(pts, axis = 1)
+        rect[1] = pts[np.argmin(diff)]
+        rect[3] = pts[np.argmax(diff)]
+        rect *= PICTURE_RATIO
+
+        rect[0] -= 50 
+        rect[1][0] += 50 
+        rect[1][1] -= 50 
+        rect[2] += 50 
+        rect[3][0] -= 50 
+        rect[3][1] += 50
+        
+        self.make_low_res()
+        Autofocus.focus(self.vs)
+        self.make_high_res()
+        _, frame = self.vs.read()
+        self.make_low_res()
+        
+        y_min = int(min(rect[0][1], rect[1][1], rect[2][1], rect[3][1]))
+        y_max = int(max(rect[0][1], rect[1][1], rect[2][1], rect[3][1]))
+        x_min = int(min(rect[0][0], rect[1][0], rect[2][0], rect[3][0]))
+        x_max = int(max(rect[0][0], rect[1][0], rect[2][0], rect[3][0]))
+        
+        roi = frame[y_min:y_max, x_min:x_max]
+        
+        return roi
 
     def process_contours(self, contours, canvas):
 
@@ -179,20 +269,14 @@ class IDDetector:
         rect *= PICTURE_RATIO
         
         rect2 = rect.copy()
-        print("rect[0] " + str(rect[0]))
-        print("rect[1] " + str(rect[1]))
-        print("rect[2] " + str(rect[2]))
-        print("rect[3] " + str(rect[3]))
-        rect[0] -= 10 
-        rect[1][0] += 10 
-        rect[1][1] -= 10 
-        rect[2] += 10 
-        rect[3][0] -= 10 
-        rect[3][1] += 10   
-        print("rect[0] " + str(rect[0]))      
-        print("rect[1] " + str(rect[1]))
-        print("rect[2] " + str(rect[2]))
-        print("rect[3] " + str(rect[3]))
+
+        rect[0] -= 70 
+        rect[1][0] += 70 
+        rect[1][1] -= 70 
+        rect[2] += 70 
+        rect[3][0] -= 70 
+        rect[3][1] += 70
+
         
         # now that we have our rectangle of points, let's compute
         # the width of our new image
@@ -241,7 +325,74 @@ class IDDetector:
         cv2.imwrite("barcodeno_crop_small.jpg", frame[y__min:y__max, x__min:x__max, :])
         #cv2.drawContours(frame, [rect2], -1, (255, 0, 255), 1)
         #cv2.imshow("crop", frame)
-        print("s: " + str(frame.shape))
+        
+    def process_id_contours(self, contours, frame):
+        
+        pts = contours[0].reshape(4, 2)
+        
+        rect = np.zeros((4, 2), dtype = "float32")
+        rect2 = np.zeros((4, 2), dtype = "float32")
+        
+        # the top-left point has the smallest sum whereas the
+        # bottom-right has the largest sum
+        s = pts.sum(axis = 1)
+        rect[0] = pts[np.argmin(s)]
+        rect[2] = pts[np.argmax(s)]
+        # compute the difference between the points -- the top-right
+        # will have the minumum difference and the bottom-left will
+        # have the maximum difference
+        diff = np.diff(pts, axis = 1)
+        rect[1] = pts[np.argmin(diff)]
+        rect[3] = pts[np.argmax(diff)]
+        
+        rect2 = rect.copy()
+
+        rect[0] -= 5 
+        rect[1][0] += 5 
+        rect[1][1] -= 5 
+        rect[2] += 5 
+        rect[3][0] -= 5 
+        rect[3][1] += 5
+
+        
+        # now that we have our rectangle of points, let's compute
+        # the width of our new image
+        (tl, tr, br, bl) = rect
+        widthA = np.sqrt(((br[0] - bl[0]) ** 2) + ((br[1] - bl[1]) ** 2))
+        widthB = np.sqrt(((tr[0] - tl[0]) ** 2) + ((tr[1] - tl[1]) ** 2))
+        # ...and now for the height of our new image
+        heightA = np.sqrt(((tr[0] - br[0]) ** 2) + ((tr[1] - br[1]) ** 2))
+        heightB = np.sqrt(((tl[0] - bl[0]) ** 2) + ((tl[1] - bl[1]) ** 2))
+        # take the maximum of the width and height values to reach
+        # our final dimensions
+        maxWidth = max(int(widthA), int(widthB))
+        maxHeight = max(int(heightA), int(heightB))
+        
+        # construct our destination points which will be used to
+        # map the screen to a top-down, "birds eye" view
+        dst = np.array([
+                [0, 0],
+                [maxWidth - 1, 0],
+                [maxWidth - 1, maxHeight - 1],
+                [0, maxHeight - 1]], dtype = "float32")
+        
+        # calculate the perspective transform matrix and warp
+        # the perspective to grab the screen
+        M = cv2.getPerspectiveTransform(rect, dst)
+        warp = cv2.warpPerspective(frame, M, (maxWidth, maxHeight))
+        
+        cv2.imwrite("barcode.jpg", warp)
+        y_min = int(min(rect[0][1], rect[1][1], rect[2][1], rect[3][1]))
+        y_max = int(max(rect[0][1], rect[1][1], rect[2][1], rect[3][1]))
+        x_min = int(min(rect[0][0], rect[1][0], rect[2][0], rect[3][0]))
+        x_max = int(max(rect[0][0], rect[1][0], rect[2][0], rect[3][0]))
+        
+        y__min = int(min(rect2[0][1], rect2[1][1], rect2[2][1], rect2[3][1]))
+        y__max = int(max(rect2[0][1], rect2[1][1], rect2[2][1], rect2[3][1]))
+        x__min = int(min(rect2[0][0], rect2[1][0], rect2[2][0], rect2[3][0]))
+        x__max = int(max(rect2[0][0], rect2[1][0], rect2[2][0], rect2[3][0]))        
+        cv2.imwrite("barcodeno_crop.jpg", frame[y_min:y_max, x_min:x_max, :])
+        cv2.imwrite("barcodeno_crop_small.jpg", frame[y__min:y__max, x__min:x__max, :])     
             
     def make_low_res(self):
         self.vs.set(cv2.CAP_PROP_FRAME_WIDTH, VIDEO_FRAME_WIDTH)
@@ -252,9 +403,6 @@ class IDDetector:
         self.vs.set(cv2.CAP_PROP_FRAME_HEIGHT, SCREENSHOT_HEIGHT) 
         
     def take_picture(self, contour, box):
-
-        
-        
         _x1 = box[0][0] #* (SCREENSHOT_WIDTH / VIDEO_FRAME_WIDTH)
         _y1 = box[0][1] #* (SCREENSHOT_HEIGHT / VIDEO_FRAME_HEIGHT)
         _x2 = box[1][0] #* (SCREENSHOT_WIDTH / VIDEO_FRAME_WIDTH)

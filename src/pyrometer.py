@@ -7,22 +7,12 @@ SDA = 2
 SCL = 3
 GPIO_TRIGGER = 4
 
-def print_func(frame):
-        print("pyro: " + frame)
-        
-i2c_sniffer = I2CSniffer(SDA, SCL, print_func)
-i2c_sniffer.sniff()
-
-while True:
-        time.sleep(1)
-        
-
-
 class Pyrometer:
     def __init__(self):
         self.i2c_sniffer = I2CSniffer(SDA, SCL, self._cb)
         self.gpio_trigger = GPIO_TRIGGER
 
+        GPIO.setmode(GPIO.BCM)
         GPIO.setup(self.gpio_trigger, GPIO.OUT)
 
         self.frames = list()
@@ -37,11 +27,26 @@ class Pyrometer:
         print("Medir*")
         time.sleep(3)
         GPIO.output(self.gpio_trigger, False)
-        time.sleep(3)
+        time.sleep(1)
         self.i2c_sniffer.stop()
-        for frame in self.frames):
-            print("* " + frame)
 
+        if len(self.frames) == 3:
+            self.decode_temperature(self.frames[2])
+
+    def decode_temperature(self, frame):
+        frame = filter(lambda x: x != '[' and x != ']', frame)
+        if len(frame) > 0 and frame[len(frame)-1] == '+':
+            frame = frame[:-1]
+
+        byte_fields = frame.split('+')
+
+        if len(byte_fields) != 4:
+            return
+
+        temp_str = "0x" + byte_fields[3][1] + byte_fields[2]
+        temp = int(temp_str, 16) 
+        temp_float = temp / 100.0
+        print("temperature: " + str(temp_float))
         
 
         

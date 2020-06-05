@@ -5,10 +5,12 @@ import time
 #from src.id_detector import IDDetector
 from src.pyrometer import Pyrometer
 
-pyrometer = Pyrometer()
+if __name__ == "__main__":
+    pyrometer = Pyrometer()
 
-while True:
-    pyrometer.meassure()
+    while True:
+        pyrometer.measure()
+        time.sleep(3)
 
 
 

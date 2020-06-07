@@ -38,9 +38,8 @@ class Pyrometer:
     def decode_temperature(self, frame):
         #print("frame: " + frame)
         filtered = filter(lambda x: x != '[' and x != ']', frame)
-        filterd_full = list()
-        for f in filtered:
-            filterd_full.append(f)
+        s = ""
+        filterd_full = s.join(filtered)
 
         temp_str = "0x" + filterd_full[10] + filterd_full[6] + filterd_full[7]
         temp = int(temp_str, 16) 

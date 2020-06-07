@@ -1,6 +1,7 @@
 import time
 import string  
 import json 
+import datetime
 
 #from src.ramp import Ramp 
 #from src.servo import Servo
@@ -12,6 +13,7 @@ from src.mqtt_client import MQTTClient
 
 
 def id_card_detected(msg):
+    print(msg)
     fields = msg.split(',')
     global id_fields
     id_fields = list()
@@ -20,7 +22,7 @@ def id_card_detected(msg):
         filtered = filter(lambda x: x in string.printable, field)
         str_ = ""
         f = str_.join(filtered)
-        id_fields.append(f)
+        id_fields.append(f.strip())
 
     print("card detected")
     global is_card_detected
@@ -35,13 +37,15 @@ def temperature_taken(temp):
     is_temperature_taken = True
 
 def publish_msg():
-    # a Python object (dict):
     x = {
-        "name": id_fields[5],
-        "surname" : id_fields[6],
-        "lastname" : id_fields[3] + " - " + id_fields[4],
+        "name": id_fields[5] + " " + id_fields[6],
+        "lastName" : id_fields[3] + " " + id_fields[4],
         "id" : id_fields[2],
-        "temperature": temperature
+        "birthday" : id_fields[8],
+        "temperature": temperature,
+        "company" : "62b15004-a85d-11ea-bb37-0242ac130002",
+        "device" : "dbafb884-a85c-11ea-bb37-0242ac130002",
+        "timestamp" : int(datetime.datetime.now().timestamp()) * 1000
     }
 
     print(json.dumps(x))

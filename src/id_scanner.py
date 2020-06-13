@@ -33,22 +33,15 @@ class IDScanner:
 
     def _reading_thread(self):
         lock_ctr = 0
-        print("Finish Thread ****")
         while True:
             lock_ctr += 1
             if lock_ctr % CTR_CHECK_THREAD_FINISH == 0 and self._is_thread_to_be_finished() == True:
-                print("Finish Thread")
                 break
 
-            #Only read Read Descriptors - no 23172791
-
-
-            
             if sys.stdin in select.select([sys.stdin], [], [], READ_TIMEOUT_S)[0]:
                 #Data available to be read
                 self._cb(sys.stdin.readline())
             
-
         print("ID detector thread finished!")
 
 

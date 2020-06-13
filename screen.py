@@ -8,12 +8,7 @@
 
 
 from PyQt5 import QtCore, QtGui, QtWidgets
-from src.main_thread import MainThread
 
-import time
-import string  
-import json 
-import datetime
 
 
 class Ui_MainWindow(object):
@@ -56,10 +51,6 @@ class Ui_MainWindow(object):
         self.retranslateUi(MainWindow)
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
 
-        self.main_thread = MainThread()
-        self.main_thread.start()
-
-
     def retranslateUi(self, MainWindow):
         _translate = QtCore.QCoreApplication.translate
         MainWindow.setWindowTitle(_translate("MainWindow", "MainWindow"))
@@ -84,48 +75,3 @@ if __name__ == "__main__":
     ui.setupUi(MainWindow)
     MainWindow.show()
     sys.exit(app.exec())
-
-
-'''
-def publish_msg():
-    x = {
-        "name": id_fields[5] + " " + id_fields[6],
-        "lastName" : id_fields[3] + " " + id_fields[4],
-        "id" : id_fields[2],
-        "birthday" : id_fields[8],
-        "temperature": temperature,
-        "company" : "62b15004-a85d-11ea-bb37-0242ac130002",
-        "device" : "dbafb884-a85c-11ea-bb37-0242ac130002",
-        "timestamp" : int(datetime.datetime.now().timestamp()) * 1000
-    }
-
-    print(json.dumps(x))
-    mqtt_client.publish_msg(json.dumps(x))
-
-mqtt_client = MQTTClient()
-id_scanner = IDScanner(id_card_detected)
-pyrometer = Pyrometer(temperature_taken)
-
-is_card_detected = False
-is_temperature_taken = False
-id_fields = list()
-temperature = ""
-
-if __name__ == "__main__":
-
-    id_scanner.start()
-    while True:
-        if is_card_detected and not is_temperature_taken:
-            pyrometer.measure()
-        elif is_card_detected and is_temperature_taken:
-            publish_msg()
-            is_card_detected = False
-            is_temperature_taken = False
-        time.sleep(1.5)
-
-    print("Main thread finished!")
-
-
-
-
-'''

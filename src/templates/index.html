@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Flask-SSE Quickstart</title>
+</head>
+<body>
+  <h1>Flask-SSE Quickstart</h1>
+  <script>
+    var source = new EventSource("http://127.0.0.1:5000/sub");
+
+    source.addEventListener("pingo", function(e){
+      console.log("HEllo " + e.data)
+    });
+  </script>
+</body>
+</html>

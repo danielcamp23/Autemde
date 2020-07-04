@@ -21,7 +21,7 @@ class Direction(enum.Enum):
 ramp_stepper = Ramp(RAMP_STEPS)
 
 class Servo:
-    def __init__(self, in_steps_gpio, in_direction_gpio):
+    def __init__(self, in_steps_gpio: int, in_direction_gpio: int):
         self.current_step_on_ramp = 0
         self.current_direction = Direction.Stop
         self.lock = threading.Lock()
@@ -36,11 +36,11 @@ class Servo:
         GPIO.setup(in_steps_gpio, GPIO.OUT)
         GPIO.setup(in_direction_gpio, GPIO.OUT)
 
-    def move_right(self, in_steps_to_take):
+    def move_right(self, in_steps_to_take: int):
         
         self.move(Direction.Right, in_steps_to_take)
 
-    def move_left(self, in_steps_to_take):
+    def move_left(self, in_steps_to_take: int):
         self.move(Direction.Left, in_steps_to_take)
 
     def stop(self):

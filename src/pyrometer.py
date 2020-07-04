@@ -24,7 +24,7 @@ class Pyrometer:
     def _cb(self, frame):
         self.frames.append(frame)
 
-    def measure(self):
+    def start(self):
         temperature = 0.0
         temperature_taken = False
         with time_guard(TIMEOUT):
@@ -47,6 +47,10 @@ class Pyrometer:
             self.measure_complete_cb(temperature)
         else:
             self.measure_complete_cb(-1.0)
+
+    def stop(self):
+        #dummy method
+        pass
 
     def decode_temperature(self, frame):
         #print("frame: " + frame)

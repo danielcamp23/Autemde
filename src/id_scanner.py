@@ -1,9 +1,10 @@
 import sys
 import threading
 import select
+import time
 
 CTR_CHECK_THREAD_FINISH = 200
-READ_TIMEOUT_S = 1
+READ_TIMEOUT_S = 10
 
 class IDScanner:
     def __init__(self, cb):
@@ -33,14 +34,15 @@ class IDScanner:
 
     def _reading_thread(self):
         lock_ctr = 0
-        while True:
-            lock_ctr += 1
-            if lock_ctr % CTR_CHECK_THREAD_FINISH == 0 and self._is_thread_to_be_finished() == True:
-                break
+        with time_guard(TIMEOUT): 
+            while True:
+                lock_ctr += 1
+                if lock_ctr % CTR_CHECK_THREAD_FINISH == 0 and self._is_thread_to_be_finished() == True:
+                    break
 
-            if sys.stdin in select.select([sys.stdin], [], [], READ_TIMEOUT_S)[0]:
-                #Data available to be read
-                self._cb(sys.stdin.readline())
+                if sys.stdin in select.select([sys.stdin], [], [], READ_TIMEOUT_S)[0]:
+                    self.parse_frame(sys.stdin.readline())
+                    self._cb(sys.stdin.readline())
             
         print("ID detector thread finished!")
 
@@ -57,3 +59,28 @@ class IDScanner:
 
         return finish_thread
 
+    def parse_frame(frame):
+        print(frame)
+        fields = frame.split(',')
+        id_fields = list()
+
+        for field in fields:
+            filtered = filter(lambda x: x in string.printable, field)
+            str_ = ""
+            f = str_.join(filtered).strip()
+            id_fields.append(f)
+
+        for field in id_fields:
+            print("* : {}".format(field))
+            
+            
+
+if __name__ == "__main__":
+    scanner = IDScanner(id_card_detected)
+
+    while True:
+        if sys.stdin in select.select([sys.stdin], [], [], READ_TIMEOUT_S)[0]:
+            #Data available to be read
+            id_card_detected(sys.stdin.readline())
+
+        time.sleep(2)

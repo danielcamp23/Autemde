@@ -53,7 +53,7 @@ class TelescopicDetector:
 		self.detector = cv2.CascadeClassifier("models/haarcascade_frontalface_default.xml")
 		self.predictor = dlib.shape_predictor("models/shape_predictor_68_face_landmarks.dat")
 
-	def detect(self):
+	def start(self):
 		telescopic_aligned = False
 		with time_guard(TIMEOUT):
 			vs = cv2.VideoCapture(0)
@@ -121,3 +121,5 @@ class TelescopicDetector:
 			vs.stop()
 			return telescopic_aligned
 
+	def stop(self, restart_position: bool = True):
+		pass
